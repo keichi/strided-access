@@ -29,13 +29,29 @@ inline void cuda_last_error_check()
 }
 
 
+template<typename NumericT>
+__global__ void kernel_init(NumericT * x,
+                            NumericT * y,
+                            NumericT * z,
+                            unsigned int size)
+{
+  for (unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
+                    i < size;
+                    i += gridDim.x * blockDim.x) {
+      x[i] = 1.0;
+      y[i] = 2.0;
+      z[i] = 3.0;
+  }
+}
+
+
 // Kernel for the benchmark
 template<typename NumericT>
-__global__ void elementwise_add(const NumericT * x,
-                                const NumericT * y,
-                                      NumericT * z,
-                                unsigned int stride,
-                                unsigned int size)
+__global__ void kernel_add(const NumericT * x,
+                           const NumericT * y,
+                                 NumericT * z,
+                           unsigned int stride,
+                           unsigned int size)
 {
   for (unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
                     i < size;
@@ -46,27 +62,36 @@ __global__ void elementwise_add(const NumericT * x,
 
 int main(int argc, char **argv)
 {
-  typedef float       NumericT;
+  typedef double       NumericT;
 
   cudaDeviceProp prop;
-  cudaError_t err = cudaGetDeviceProperties(&prop, 0); if (err != cudaSuccess) throw std::runtime_error("Failed to get CUDA device name");
+  cudaError_t err = cudaGetDeviceProperties(&prop, 0);
+  if (err != cudaSuccess)
+    throw std::runtime_error("Failed to get CUDA device name");
   std::cout << "# Using device: " << prop.name << std::endl;
 
   // Set up work vectors
-  std::size_t N =  1000000;
+  std::size_t N = 20 * 1000 * 1000;
 
-  std::vector<NumericT> host_x(32*N);
   NumericT *x, *y, *z;
 
-  err = cudaMalloc(&x, sizeof(NumericT) * 32 * N); if (err != cudaSuccess) throw std::runtime_error("Failed to allocate CUDA memory for x");
-  err = cudaMalloc(&y, sizeof(NumericT) * 32 * N); if (err != cudaSuccess) throw std::runtime_error("Failed to allocate CUDA memory for y");
-  err = cudaMalloc(&z, sizeof(NumericT) * 32 * N); if (err != cudaSuccess) throw std::runtime_error("Failed to allocate CUDA memory for z");
+  err = cudaMalloc(&x, sizeof(NumericT) * 32 * N);
+  if (err != cudaSuccess)
+    throw std::runtime_error("Failed to allocate CUDA memory for x");
+  err = cudaMalloc(&y, sizeof(NumericT) * 32 * N);
+  if (err != cudaSuccess)
+    throw std::runtime_error("Failed to allocate CUDA memory for y");
+  err = cudaMalloc(&z, sizeof(NumericT) * 32 * N);
+  if (err != cudaSuccess)
+    throw std::runtime_error("Failed to allocate CUDA memory for z");
 
+  // Init arrays
+  kernel_init<<<1024, 1024>>>(x, y, z, static_cast<unsigned int>(N));
 
-  // Warmup calculation:
-  elementwise_add<<<256, 256>>>(x, y, z,
-                                static_cast<unsigned int>(1),
-                                static_cast<unsigned int>(N));
+  // Warmup calculation
+  kernel_add<<<256, 256>>>(x, y, z,
+                           static_cast<unsigned int>(1),
+                           static_cast<unsigned int>(N));
   cuda_last_error_check();
 
   // Benchmark runs
@@ -80,9 +105,9 @@ int main(int argc, char **argv)
     // repeat calculation several times, then average
     for (std::size_t num_runs = 0; num_runs < 20; ++num_runs)
     {
-      elementwise_add<<<256, 256>>>(x, y, z,
-                                    static_cast<unsigned int>(stride),
-                                    static_cast<unsigned int>(N));
+      kernel_add<<<1024, 1024>>>(x, y, z,
+                                 static_cast<unsigned int>(stride),
+                                 static_cast<unsigned int>(N));
       cuda_last_error_check();
     }
     cudaDeviceSynchronize();
@@ -93,4 +118,3 @@ int main(int argc, char **argv)
 
   return EXIT_SUCCESS;
 }
-
