@@ -6,28 +6,43 @@
 //
 
 #include <iostream>
-#include <string>
-#include <vector>
-#include <sstream>
 #include <stdexcept>
 #include <cstdlib>
 
 #include "benchmark-utils.hpp"
 
-typedef float       NumericT;
+typedef double       NumericT;
 
-int kernel_func(NumericT *x, NumericT const *y, NumericT const *z, int stride, int N);
+int kernel_func(NumericT *x, NumericT const *y, NumericT const *z, int stride, int N)
+{
+  if (stride == 1)
+  {
+    #pragma omp parallel for
+    for (int i=0; i<N; ++i)
+      x[i] = y[i] + z[i];
+  }
+  else
+  {
+    #pragma omp parallel for
+    for (int i=0; i<N; ++i)
+      x[i*stride] = y[i*stride] + z[i*stride];
+  }
+}
 
 int main(int argc, char **argv)
 {
 
   // slightly larger on CPU than on GPU so that arrays don't fit in cache
-  std::size_t N = 5000000;
+  std::size_t N = 20 * 1000 * 1000;
 
-  // Note: Run only on a single NUMA domain. std::vector<T> has terrible first-touch semantics
-  NumericT *x; if (posix_memalign((void**)&x, 64, 32*N*sizeof(NumericT))) throw std::runtime_error("Failed to allocate x");
-  NumericT *y; if (posix_memalign((void**)&y, 64, 32*N*sizeof(NumericT))) throw std::runtime_error("Failed to allocate y");
-  NumericT *z; if (posix_memalign((void**)&z, 64, 32*N*sizeof(NumericT))) throw std::runtime_error("Failed to allocate z");
+  NumericT *x, *y, *z;
+
+  if (posix_memalign((void**)&x, 64, 32*N*sizeof(NumericT)))
+    throw std::runtime_error("Failed to allocate x");
+  if (posix_memalign((void**)&y, 64, 32*N*sizeof(NumericT)))
+    throw std::runtime_error("Failed to allocate y");
+  if (posix_memalign((void**)&z, 64, 32*N*sizeof(NumericT)))
+    throw std::runtime_error("Failed to allocate z");
 
   #pragma omp parallel for
   for (std::size_t i=0; i<32*N; ++i)
@@ -37,10 +52,8 @@ int main(int argc, char **argv)
     z[i] = 3.0;
   }
 
-
   // warmup:
   kernel_func(&x[0], &y[0], &z[0], 1, N);
-
 
   // Benchmark runs
   Timer timer;
@@ -61,4 +74,3 @@ int main(int argc, char **argv)
 
   return EXIT_SUCCESS;
 }
-
