@@ -21,16 +21,16 @@ license, see results/LICENSE.txt
 To build the executable, use (or adjust) one of the following commands to your environment:
 
 CUDA:
- $> nvcc benchmark-cuda.cu -arch=sm_20 -I$VIENNACLPATH
+ $> nvcc benchmark-cuda.cu -arch=sm_80
 
 OpenCL:
  $> g++ benchmark-opencl.cpp -I. -lOpenCL -L/usr/local/cuda/lib64/
  (If OpenCL is available system-wide, you may be able to omit the -L flag)
 
 OpenMP:
- $> g++ benchmark-openmp.cpp benchmark-openmp2.cpp -I. -O3 -fopenmp
+ $> g++ benchmark-openmp.cpp -O3 -fopenmp
 for CPUs or
- $> icc benchmark-openmp.cpp benchmark-openmp2.cpp -O3 -fopenmp -mmic
+ $> icc benchmark-openmp.cpp -O3 -fopenmp -mmic
 for Xeon Phi
 
 
@@ -51,6 +51,3 @@ Convert to .pdf via
  $> epstopdf strided-access.eps
 and to .png using ImageMagick, e.g.
  $> convert -density 300 strided-access.eps -resize 1150x strided-access.png
-
-
-
